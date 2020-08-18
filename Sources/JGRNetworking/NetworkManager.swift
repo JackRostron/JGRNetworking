@@ -262,7 +262,6 @@ open class NetworkManager {
             } catch let error {
                 let content = try? JSONSerialization.jsonObject(with: data, options: .allowFragments)
                 print("Failed to build codable from JSON: \(String(describing: content))\n\nError: \(error)")
-                assertionFailure("Failed to build codable from JSON: \(error)")
                 completion?(.failure(statusCode, NetworkError(reason: .castingToExpectedType)), nil)
                 return
             }
