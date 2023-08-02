@@ -7,6 +7,25 @@
 
 import Foundation
 
+/// Protocol to allow network mocking
+
+public protocol URLSessionDataTaskProtocol {
+    func resume()
+}
+
+extension URLSessionDataTask: URLSessionDataTaskProtocol {}
+
+public protocol URLSessionProtocol {
+    typealias DataTaskResult = (Data?, URLResponse?, Error?) -> Void
+    func dataTask(with request: URLRequest, completionHandler: @escaping DataTaskResult) -> URLSessionDataTaskProtocol
+}
+
+extension URLSession: URLSessionProtocol {
+    public func dataTask(with request: URLRequest, completionHandler: @escaping DataTaskResult) -> URLSessionDataTaskProtocol {
+        return dataTask(with: request, completionHandler: completionHandler) as URLSessionDataTask
+    }
+}
+
 /// Representation of the standard HTTP request types
 public enum HTTPMethod: String {
     case get = "GET"
@@ -58,15 +77,16 @@ open class NetworkManager {
     public var baseURL: URL
     public var headers: [String: String]?
     private static let successStatusRange = 200..<300
-    private let session = URLSession(configuration: .default)
-
+    private let session: URLSessionProtocol
+    
     public typealias APIResponse<R> = ((APISuccessState, R?) -> Void)?
 
     // MARK: - Lifecycle
-
-    public init(baseURL url: String) {
-        baseURL = URL(string: url)!
-    }
+    
+    public init(baseURL url: String, session: URLSessionProtocol = URLSession(configuration: .default)) {
+            self.baseURL = URL(string: url)!
+            self.session = session
+        }
 
     // MARK: - Public API
 
@@ -143,7 +163,7 @@ open class NetworkManager {
 
         // Try to build the URL, bad request if we can't
 
-        guard let urlString = urlComponents.url?.absoluteString.removingPercentEncoding,
+        guard let urlString = urlComponents.url?.absoluteString,
             let url = URL(string: urlString) else {
                 completion?(.failure(nil, NetworkError(reason: .invalidURL)), nil)
                 return
@@ -237,34 +257,32 @@ open class NetworkManager {
                 completion?(.failure(statusCode, NetworkError(reason: .castingToExpectedType)), nil)
                 return
             }
-
+            
             // If we are expecting nothing, return now (since we will have nothing!)
-
             if responseType is Nothing.Type {
                 completion?(.success(statusCode), nil)
                 return
             }
 
-            guard let data = rawData else {
-                assertionFailure("Could not cast data from payload when we passed pre-cast checks")
-                return
-            }
-
-            // Decode the JSON and cast to our expected response type
-
-            do {
-                let decoder = JSONDecoder()
-                if #available(iOS 11, OSX 10.12, *) {
-                    decoder.dateDecodingStrategy = .iso8601
+            // Try to decode the data if it's not nil
+            if let data = rawData {
+                // Decode the JSON and cast to our expected response type
+                do {
+                    let decoder = JSONDecoder()
+                    if #available(iOS 11, OSX 10.12, *) {
+                        decoder.dateDecodingStrategy = .iso8601
+                    }
+                    let responseObject = try decoder.decode(responseType, from: data)
+                    completion?(.success(statusCode), responseObject)
+                    return
+                } catch let error {
+                    let content = try? JSONSerialization.jsonObject(with: data, options: .allowFragments)
+                    print("Failed to build codable from JSON: \(String(describing: content))\n\nError: \(error)")
+                    completion?(.failure(statusCode, NetworkError(reason: .castingToExpectedType)), nil)
+                    return
                 }
-                let responseObject = try decoder.decode(responseType, from: data)
-                completion?(.success(statusCode), responseObject)
-                return
-            } catch let error {
-                let content = try? JSONSerialization.jsonObject(with: data, options: .allowFragments)
-                print("Failed to build codable from JSON: \(String(describing: content))\n\nError: \(error)")
-                completion?(.failure(statusCode, NetworkError(reason: .castingToExpectedType)), nil)
-                return
+            } else {
+                completion?(.failure(statusCode, NetworkError(reason: .unwrappingResponse)), nil)
             }
         }
 
@@ -310,6 +328,9 @@ open class NetworkManager {
             }
             data = try encoder.encode(body)
             headerValue = "application/json"
+        case .multipartForm:
+            // TODO: Complete
+            fatalError("Need to accomodate")
         }
  
         return (data: data, headerValue: headerValue)

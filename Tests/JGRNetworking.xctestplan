@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "3C61ADF9-0258-45A4-9AEB-9BEC48A60542",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "JGRNetworkingTests",
+        "name" : "JGRNetworkingTests"
+      }
+    }
+  ],
+  "version" : 1
+}
