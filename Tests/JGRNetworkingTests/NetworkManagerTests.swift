@@ -319,6 +319,28 @@ class NetworkManagerTests: XCTestCase {
         
         waitForExpectations(timeout: 10, handler: nil)
     }
+    
+    func testCreateDataBody() {
+        // Given
+        let boundary = "Boundary-\(UUID().uuidString)"
+        let fieldName = "test"
+        let fileName = "test.txt"
+        let mimeType = "text/plain"
+        let data = "Test string".data(using: .utf8)!
+        let multipartForm = MultipartForm(data: data, fieldName: fieldName, fileName: fileName, mimeType: mimeType)
+        
+        // When
+        let bodyData = sut.createDataBody(withParameters: nil, media: [multipartForm], boundary: boundary)
+        
+        // Then
+        let bodyString = String(data: bodyData, encoding: .utf8)
+        XCTAssertNotNil(bodyString)
+        
+        // Check if the field name, file name and the mime type are included in the body string
+        XCTAssertTrue(bodyString?.contains(fieldName) ?? false)
+        XCTAssertTrue(bodyString?.contains(fileName) ?? false)
+        XCTAssertTrue(bodyString?.contains(mimeType) ?? false)
+    }
 }
 
 // MARK: - Supporting Test Models

@@ -48,10 +48,10 @@ public struct NetworkError: Error {
         case unwrappingResponse
         case invalidResponseType
     }
-
+    
     public let reason: Reason
     public let json: Any?
-
+    
     public init(reason: Reason, json: Any? = nil) {
         self.reason = reason
         self.json = json
@@ -71,54 +71,54 @@ private protocol NothingProtocol {}
 public struct Nothing: Codable, NothingProtocol {}
 
 open class NetworkManager {
-
+    
     // MARK: - Properties
-
+    
     public var baseURL: URL
     public var headers: [String: String]?
     private static let successStatusRange = 200..<300
     private let session: URLSessionProtocol
     
     public typealias APIResponse<R> = ((APISuccessState, R?) -> Void)?
-
+    
     // MARK: - Lifecycle
     
     public init(baseURL url: String, session: URLSessionProtocol = URLSession(configuration: .default)) {
-            self.baseURL = URL(string: url)!
-            self.session = session
-        }
-
+        self.baseURL = URL(string: url)!
+        self.session = session
+    }
+    
     // MARK: - Public API
-
+    
     public func call<R: Decodable>(_ endpoint: Endpoint,
-                            with args: [String: String]? = nil,
-                            using method: HTTPMethod = .get,
-                            expecting response: R.Type?,
-                            completion: APIResponse<R>) {
+                                   with args: [String: String]? = nil,
+                                   using method: HTTPMethod = .get,
+                                   expecting response: R.Type?,
+                                   completion: APIResponse<R>) {
         call(endpoint, with: args, parameters: Nothing(),
              using: method, posting: Nothing(), expecting: response, completion: completion)
     }
-
+    
     public func callWithParams<P: Encodable, R: Decodable>(_ endpoint: Endpoint,
-                                                    with args: [String: String]? = nil,
-                                                    parameters: P,
-                                                    using method: HTTPMethod = .get,
-                                                    expecting response: R.Type?,
-                                                    completion: APIResponse<R>) {
+                                                           with args: [String: String]? = nil,
+                                                           parameters: P,
+                                                           using method: HTTPMethod = .get,
+                                                           expecting response: R.Type?,
+                                                           completion: APIResponse<R>) {
         call(endpoint, with: args, parameters: parameters,
              using: method, posting: Nothing(), expecting: response, completion: completion)
     }
-
+    
     public func post<R: Decodable, B: Encodable>(_ endpoint: Endpoint,
-                                          with args: [String: String]? = nil,
-                                          using method: HTTPMethod = .post,
-                                          posting body: B?,
-                                          expecting response: R.Type?,
-                                          completion: APIResponse<R>) {
+                                                 with args: [String: String]? = nil,
+                                                 using method: HTTPMethod = .post,
+                                                 posting body: B?,
+                                                 expecting response: R.Type?,
+                                                 completion: APIResponse<R>) {
         call(endpoint, with: args, parameters: Nothing(),
              using: method, posting: body, expecting: response, completion: completion)
     }
-
+    
     // swiftlint:disable cyclomatic_complexity function_body_length
     private func call<P: Encodable, B: Encodable, R: Decodable>(_ endpoint: Endpoint,
                                                                 with args: [String: String]? = nil,
@@ -127,74 +127,74 @@ open class NetworkManager {
                                                                 posting body: B?,
                                                                 expecting responseType: R.Type?,
                                                                 completion: APIResponse<R>) {
-
+        
         // Prepare our URL components
-
+        
         guard var urlComponents = URLComponents(string: baseURL.absoluteString) else {
             completion?(.failure(nil, NetworkError(reason: .invalidURL)), nil)
             return
         }
-
+        
         guard let endpointPath = endpoint.url(with: args) else {
             completion?(.failure(nil, NetworkError(reason: .invalidURL)), nil)
             return
         }
-
+        
         urlComponents.path = urlComponents.path.appending(endpointPath)
-
+        
         // Apply our parameters
-
-        applyParameters: if let parameters = try? params.asDictionary() {
-            if parameters.count == 0 {
-                break applyParameters
-            }
-
-            var queryItems = [URLQueryItem]()
-
-            for (key, value) in parameters {
-                if let value = value as? String {
-                    let queryItem = URLQueryItem(name: key, value: value)
-                    queryItems.append(queryItem)
-                }
-            }
-
-            urlComponents.queryItems = queryItems
+        
+    applyParameters: if let parameters = try? params.asDictionary() {
+        if parameters.count == 0 {
+            break applyParameters
         }
-
+        
+        var queryItems = [URLQueryItem]()
+        
+        for (key, value) in parameters {
+            if let value = value as? String {
+                let queryItem = URLQueryItem(name: key, value: value)
+                queryItems.append(queryItem)
+            }
+        }
+        
+        urlComponents.queryItems = queryItems
+    }
+        
         // Try to build the URL, bad request if we can't
-
+        
         guard let urlString = urlComponents.url?.absoluteString,
-            let url = URL(string: urlString) else {
-                completion?(.failure(nil, NetworkError(reason: .invalidURL)), nil)
-                return
+              let url = URL(string: urlString) else {
+            completion?(.failure(nil, NetworkError(reason: .invalidURL)), nil)
+            return
         }
-
+        
         // Can we call this method on this endpoint? If not, lets not try to continue
-
+        
         guard endpoint.httpMethods.contains(method) else {
             completion?(.failure(nil, NetworkError(reason: .methodNotAllowed)), nil)
             return
         }
         
         // Build our request
-
+        
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-
+        
         if let headers = headers {
             for (key, value) in headers {
                 request.setValue(value, forHTTPHeaderField: key)
             }
         }
-
+        
         // If we are posting, safely retrieve the body and try to assign it to our request
-
+        
         if !(body is NothingProtocol) {
             guard let body = body else {
                 completion?(.failure(nil, NetworkError(reason: .buildingPayload)), nil)
                 return
             }
-
+            
             do {
                 let result = try encode(body: body, type: endpoint.encodingType)
                 request.httpBody = result.data
@@ -208,7 +208,7 @@ open class NetworkManager {
         // Build our response handler
         
         let task = session.dataTask(with: request as URLRequest) { (rawData, response, error) in
-
+            
             // Print some logs to help track requests
             
             var debugOutput = "URL\n\(url)\n\n"
@@ -224,35 +224,35 @@ open class NetworkManager {
             if let responseData = rawData {
                 debugOutput.append(contentsOf: "RESPONSE\n\(String(data: responseData, encoding: .utf8) ?? "No Response Content")")
             }
-
+            
             guard let httpResponse = response as? HTTPURLResponse else {
                 guard error == nil else {
                     completion?(.failure(nil, NetworkError(reason: .unwrappingResponse)), nil)
                     return
                 }
-
+                
                 completion?(.failure(nil, NetworkError(reason: .invalidResponseType)), nil)
                 return
             }
-
+            
             let statusCode = httpResponse.statusCode
-
+            
             // We have an error, return it
-
+            
             guard error == nil, NetworkManager.successStatusRange.contains(statusCode) else {
                 var output: Any?
-
+                
                 if let data = rawData {
                     output = (try? JSONSerialization.jsonObject(with: data,
                                                                 options: .allowFragments)) ?? "Unable to connect"
                 }
-
+                
                 completion?(.failure(statusCode, NetworkError(reason: .requestFailed, json: output)), nil)
                 return
             }
-
+            
             // Safely cast the responseType we are expecting
-
+            
             guard let responseType = responseType else {
                 completion?(.failure(statusCode, NetworkError(reason: .castingToExpectedType)), nil)
                 return
@@ -263,7 +263,7 @@ open class NetworkManager {
                 completion?(.success(statusCode), nil)
                 return
             }
-
+            
             // Try to decode the data if it's not nil
             if let data = rawData {
                 // Decode the JSON and cast to our expected response type
@@ -285,9 +285,9 @@ open class NetworkManager {
                 completion?(.failure(statusCode, NetworkError(reason: .unwrappingResponse)), nil)
             }
         }
-
+        
         // Submit our request
-
+        
         task.resume()
     }
     
@@ -328,12 +328,37 @@ open class NetworkManager {
             }
             data = try encoder.encode(body)
             headerValue = "application/json"
-        case .multipartForm:
-            // TODO: Complete
-            fatalError("Need to accomodate")
+        case .multipartForm(let forms):
+            let boundary = "Boundary-\(UUID().uuidString)"
+            headerValue = "multipart/form-data; boundary=\(boundary)"
+            data = createDataBody(withParameters: nil, media: forms, boundary: boundary)
         }
- 
         return (data: data, headerValue: headerValue)
+    }
+    
+    internal func createDataBody(withParameters params: [String: String]?, media: [MultipartForm], boundary: String) -> Data {
+        let lineBreak = "\r\n"
+        var body = Data()
+
+        if let parameters = params {
+            for (key, value) in parameters {
+                body.append("--\(boundary + lineBreak)")
+                body.append("Content-Disposition: form-data; name=\"\(key)\"\(lineBreak + lineBreak)")
+                body.append("\(value + lineBreak)")
+            }
+        }
+
+        for photo in media {
+            body.append("--\(boundary + lineBreak)")
+            body.append("Content-Disposition: form-data; name=\"\(photo.fieldName)\"; filename=\"\(photo.fileName)\"\(lineBreak)")
+            body.append("Content-Type: \(photo.mimeType + lineBreak + lineBreak)")
+            body.append(photo.data)
+            body.append(lineBreak)
+        }
+
+        body.append("--\(boundary)--\(lineBreak)")
+
+        return body
     }
     // swiftlint:enable cyclomatic_complexity function_body_length
 }

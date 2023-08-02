@@ -11,7 +11,7 @@ import Foundation
 public enum EncodingType {
     case json
     case form
-    case multipartForm
+    case multipartForm([MultipartForm])
 }
 
 public struct Endpoint {
